@@ -18,22 +18,44 @@ with open("../data/Corona2.json" , "r") as f:
 # for example in data['examples']:
 #     text = example['content']
 #     print(text)
-"""
-to convert the data in old spacy format i.e. annoteted format [('text', {'entities':[(start,end,label),()]}]
-"""
-training_data = []
-for document in data['examples']:
-    text = document.get('content')
-    entities = []
-    for annot_obj in document.get('annotations'):
-        start = annot_obj['start']
-        end = annot_obj['end']
-        label = annot_obj['tag_name'].upper()
-        entities.append((start, end, label))
 
-    training_data.append((text, {"entities": entities}))
 
-# print(training_data)
+"""
+    to convert the data in old spacy format i.e. annoteted format [('text', {'entities':[(start,end,label),()]}]
+ """
+
+def convert_to_old_spacy_format(data):
+    training_data = []
+    VALID_LABELS = ["MEDICINE", "PATHOGEN", "MEDICALCONDITION"]
+    for document in data['examples']:
+        text = document.get('content')
+        entities = []
+        skip_document = False
+        for annot_obj in document.get('annotations'):
+            start = annot_obj['start']
+            end = annot_obj['end']
+            if start < 0 or end > len(text):
+                # Skip invalid annotations and respective text
+                skip_document = True
+                break
+            try:
+                label = annot_obj['tag_name'].upper()
+                if label not in VALID_LABELS:
+                    # Skip invalid labels
+                    skip_document = True
+                    break
+            except KeyError:
+                raise KeyError("Annotation dictionary is missing the 'tag_name' key")
+            entities.append((start, end, label))
+        if not skip_document:
+            training_data.append((text, {"entities": entities}))
+    return training_data
+
+
+training_data = convert_to_old_spacy_format(data)
+
+print(training_data[0])
+
 # print(len(training_data))
 
 
@@ -49,7 +71,6 @@ def create_training_data(data):
                 print("Skipping entity")
             else:
                 ents.append(span)
-
 
         if not (None in ents):
             filtered = filter_spans(ents)  # THIS DOES THE TRICK for overlapping span
@@ -73,7 +94,7 @@ python -m spacy init fill-config base_config.cfg config.cfg
 """
 """
 train the model using CLI
-python -m spacy train config.cfg --output ../model   
+python -m spacy train config.cfg --output ../model
 """
 """
 to evaluate the model on test data using spacy CLI
